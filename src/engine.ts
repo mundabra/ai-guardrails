@@ -207,7 +207,7 @@ export class GuardEngine {
               stage,
               inputLength: content.length,
               outputLength: currentContent.length,
-              outcome: redactionsApplied > 0 ? 'redact' : 'allow',
+              outcome: 'error',
               warningsCount,
               redactionsApplied,
               failOpenTriggered,
@@ -322,20 +322,34 @@ export class GuardEngine {
     const result = await this.check(partition.joinedText, 'retrieval', {
       metadata: mergeMetadata(context?.metadata, { chunkCount: chunkList.length }),
     });
+    const content = partition.toVisibleText(result.content);
 
     if (!Array.isArray(chunks)) {
       return result;
     }
 
     const restoredChunks = partition.restoreSegments(result.content);
+    const normalizedResult = result.result.action === 'redact'
+      ? {
+          ...result.result,
+          redacted: content,
+        }
+      : result.result;
+
     if (restoredChunks) {
       return {
         ...result,
+        result: normalizedResult,
+        content,
         chunks: restoredChunks,
       };
     }
 
-    return result;
+    return {
+      ...result,
+      result: normalizedResult,
+      content,
+    };
   }
 
   async checkToolInput(
@@ -384,7 +398,7 @@ export class GuardEngine {
         stage,
         inputLength: 0,
         outputLength: 0,
-        outcome: 'allow',
+        outcome: this.failOpen ? 'allow' : 'error',
         warningsCount: 0,
         redactionsApplied: 0,
         failOpenTriggered: this.failOpen,

@@ -44,6 +44,7 @@ Execution model:
 - Tier 2 and tier 3 default to `runOn: 'flagged'`.
 - Tier 2 and tier 3 can opt into `runOn: 'always'`.
 - Reports are emitted once per check through `onReport`, after completion or failure.
+- Report outcomes can be `allow`, `redact`, `block`, or `error`.
 
 ### Middleware
 

@@ -329,7 +329,7 @@ const toolOutput = await engine.checkToolOutput(
 );
 ```
 
-`checkRetrieval` returns `{ result, content }` and includes `chunks` when it can reconstruct a redacted chunk array.
+`checkRetrieval` returns `{ result, content }` and includes `chunks` when it can reconstruct a redacted chunk array. For array inputs, `content` is returned as readable joined text, not the internal partition format used during guard execution.
 
 `checkToolInput` and `checkToolOutput` return the checked string content. Object payloads are serialized with stable JSON key ordering before inspection.
 
@@ -370,7 +370,7 @@ Every engine check can emit a stable metadata-only `GuardReport` through `onRepo
 Reports do not include raw input or output content by default. They include:
 
 - stage
-- final outcome
+- final outcome (`allow`, `redact`, `block`, or `error`)
 - warning and redaction counts
 - input/output lengths
 - per-guard steps with statuses, reasons, codes, and timings

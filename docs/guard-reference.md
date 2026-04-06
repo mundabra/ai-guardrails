@@ -93,5 +93,6 @@ It also does not enable any retrieval or tool payload rails by default.
 Every engine check can emit a metadata-only `GuardReport` through `onReport`.
 
 - Reports contain stage, outcome, counts, timings, and per-guard step details
+- Outcome can be `allow`, `redact`, `block`, or `error`
 - Reports do not include raw input or output content by default
 - Reports are intended for logging, CI export, and downstream evaluation tools

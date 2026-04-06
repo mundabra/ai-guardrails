@@ -197,7 +197,7 @@ export interface ToolsConfig {
   output?: ToolOutputConfig;
 }
 
-export type GuardReportOutcome = 'allow' | 'redact' | 'block';
+export type GuardReportOutcome = 'allow' | 'redact' | 'block' | 'error';
 
 export type GuardStepStatus =
   | 'passed'

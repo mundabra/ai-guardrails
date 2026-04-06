@@ -5,11 +5,13 @@
 export function createTextPartition(segments: string[]): {
   joinedText: string;
   restoreSegments: (redactedText: string) => string[] | null;
+  toVisibleText: (redactedText: string) => string;
 } {
   if (segments.length <= 1) {
     return {
       joinedText: segments[0] ?? '',
       restoreSegments: (redactedText) => [redactedText],
+      toVisibleText: (redactedText) => redactedText,
     };
   }
 
@@ -27,5 +29,6 @@ export function createTextPartition(segments: string[]): {
       const restored = redactedText.split(separator);
       return restored.length === segments.length ? restored : null;
     },
+    toVisibleText: (redactedText) => redactedText.split(separator).join('\n\n'),
   };
 }

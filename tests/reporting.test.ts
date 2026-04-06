@@ -82,6 +82,7 @@ describe('guard reports and non-text helpers', () => {
     ]);
 
     expect(result.result.action).toBe('block');
+    expect(result.content).toBe('Safe chunk\n\nAWS key: AKIAIOSFODNN7EXAMPLE');
     expect(result.chunks).toEqual([
       'Safe chunk',
       'AWS key: AKIAIOSFODNN7EXAMPLE',
@@ -100,6 +101,14 @@ describe('guard reports and non-text helpers', () => {
     ]);
 
     expect(result.result.action).toBe('redact');
+    expect(result.content).toBe('Primary: [REDACTED]\n\nBackup: [REDACTED]');
+    expect(result.result).toEqual(
+      expect.objectContaining({
+        action: 'redact',
+        redacted: 'Primary: [REDACTED]\n\nBackup: [REDACTED]',
+        code: 'pii_redacted',
+      }),
+    );
     expect(result.chunks).toEqual([
       'Primary: [REDACTED]',
       'Backup: [REDACTED]',
@@ -199,7 +208,43 @@ describe('guard reports and non-text helpers', () => {
     expect(onReport).toHaveBeenCalledWith(
       expect.objectContaining({
         stage: 'tool_input',
+        outcome: 'error',
         failOpenTriggered: false,
+      }),
+    );
+  });
+
+  it('emits error reports when a guard crashes and fail-open is disabled', async () => {
+    const onReport = vi.fn();
+    const engine = createGuardEngine({
+      onViolation: 'throw',
+      failOpen: false,
+      onReport,
+      customGuards: [
+        defineGuard({
+          name: 'crasher',
+          stage: 'input',
+          check: () => {
+            throw new Error('boom');
+          },
+        }),
+      ],
+    });
+
+    await expect(engine.check('hello', 'input')).rejects.toThrow(
+      GuardExecutionError,
+    );
+
+    expect(onReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stage: 'input',
+        outcome: 'error',
+        steps: [
+          expect.objectContaining({
+            guard: 'crasher',
+            status: 'error',
+          }),
+        ],
       }),
     );
   });
