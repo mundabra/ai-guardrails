@@ -121,69 +121,121 @@ function extractOutputText(content: LanguageModelV3Content[]): string {
 }
 
 /**
- * Replace text content in generated parts with redacted text.
+ * Build a reversible joined representation of text segments so redacted text
+ * can be mapped back to the original text-part structure.
+ */
+function createTextPartition(segments: string[]): {
+  joinedText: string;
+  restoreSegments: (redactedText: string) => string[] | null;
+} {
+  if (segments.length <= 1) {
+    return {
+      joinedText: segments[0] ?? '',
+      restoreSegments: (redactedText) => [redactedText],
+    };
+  }
+
+  let counter = 0;
+  let separator = '';
+  do {
+    separator =
+      `\u0000__MUNDABRA_AI_GUARDRAILS_BOUNDARY_${counter}__\u0000`;
+    counter += 1;
+  } while (segments.some((segment) => segment.includes(separator)));
+
+  return {
+    joinedText: segments.join(separator),
+    restoreSegments: (redactedText) => {
+      const restored = redactedText.split(separator);
+      return restored.length === segments.length ? restored : null;
+    },
+  };
+}
+
+/**
+ * Replace text content in generated parts with redacted text while preserving
+ * the original part ordering.
  */
 function replaceTextContent(
   content: LanguageModelV3Content[],
-  redactedText: string,
+  redactedSegments: string[],
 ): LanguageModelV3Content[] {
-  // If there's only one text part, replace it directly
-  const textParts = content.filter((c) => c.type === 'text');
-  if (textParts.length <= 1) {
-    return content.map((c) =>
-      c.type === 'text' && 'text' in c ? { ...c, text: redactedText } : c,
-    );
-  }
-
-  // Multiple text parts — redaction was done on the concatenated output,
-  // so replace the first text part and clear the rest
-  let replaced = false;
+  let textIndex = 0;
   return content.map((c) => {
     if (c.type !== 'text' || !('text' in c)) return c;
-    if (!replaced) {
-      replaced = true;
-      return { ...c, text: redactedText };
-    }
-    return { ...c, text: '' };
+    const text = redactedSegments[textIndex] ?? '';
+    textIndex += 1;
+    return { ...c, text };
   });
 }
 
 /**
- * Replace streamed text chunks with a single sanitized payload in the first
- * text block, leaving later text blocks empty.
+ * Collect streamed text blocks in output order.
+ */
+function collectTextStreamBlocks(
+  chunks: LanguageModelV3StreamPart[],
+): Array<{ id: string; text: string }> {
+  const blocks: Array<{ id: string; text: string }> = [];
+  const blockIndex = new Map<string, number>();
+
+  for (const chunk of chunks) {
+    if (chunk.type !== 'text-start' && chunk.type !== 'text-delta') {
+      continue;
+    }
+
+    if (!blockIndex.has(chunk.id)) {
+      blockIndex.set(chunk.id, blocks.length);
+      blocks.push({ id: chunk.id, text: '' });
+    }
+
+    if (chunk.type === 'text-delta') {
+      const index = blockIndex.get(chunk.id)!;
+      blocks[index]!.text += chunk.delta;
+    }
+  }
+
+  return blocks;
+}
+
+/**
+ * Replace streamed text chunks while preserving the original stream ordering.
  */
 function replaceTextStreamChunks(
   chunks: LanguageModelV3StreamPart[],
-  redactedText: string,
+  redactedSegments: string[],
 ): LanguageModelV3StreamPart[] {
-  const firstTextStart = chunks.find((chunk) => chunk.type === 'text-start');
-  if (!firstTextStart) return chunks;
+  const blocks = collectTextStreamBlocks(chunks);
+  if (blocks.length === 0) return chunks;
 
-  const firstTextId = firstTextStart.id;
+  const redactedById = new Map(
+    blocks.map((block, index) => [block.id, redactedSegments[index] ?? '']),
+  );
   const replaced: LanguageModelV3StreamPart[] = [];
-  let emittedRedacted = false;
+  const emitted = new Set<string>();
 
   for (const chunk of chunks) {
     if (chunk.type === 'text-delta') {
-      if (chunk.id !== firstTextId) {
-        continue;
-      }
-
-      if (!emittedRedacted && redactedText.length > 0) {
-        replaced.push({ ...chunk, delta: redactedText });
-        emittedRedacted = true;
+      if (!emitted.has(chunk.id)) {
+        const redactedText = redactedById.get(chunk.id) ?? '';
+        if (redactedText.length > 0) {
+          replaced.push({ ...chunk, delta: redactedText });
+        }
+        emitted.add(chunk.id);
       }
       continue;
     }
 
-    if (chunk.type === 'text-end' && chunk.id === firstTextId) {
-      if (!emittedRedacted && redactedText.length > 0) {
-        replaced.push({
-          type: 'text-delta',
-          id: firstTextId,
-          delta: redactedText,
-        });
-        emittedRedacted = true;
+    if (chunk.type === 'text-end') {
+      if (!emitted.has(chunk.id)) {
+        const redactedText = redactedById.get(chunk.id) ?? '';
+        if (redactedText.length > 0) {
+          replaced.push({
+            type: 'text-delta',
+            id: chunk.id,
+            delta: redactedText,
+          });
+        }
+        emitted.add(chunk.id);
       }
       replaced.push(chunk);
       continue;
@@ -227,15 +279,27 @@ function buildMiddleware(engine: GuardEngine): LanguageModelV3Middleware {
       const result = await doGenerate();
 
       if (result.content && result.content.length > 0) {
-        const outputText = extractOutputText(result.content);
-        if (outputText) {
+        const textSegments = result.content
+          .filter((c): c is LanguageModelV3Content & { type: 'text'; text: string } =>
+            c.type === 'text' && 'text' in c,
+          )
+          .map((c) => c.text);
+        const { joinedText, restoreSegments } = createTextPartition(
+          textSegments,
+        );
+
+        if (joinedText) {
           const { result: guardResult, content: redactedText } =
-            await engine.check(outputText, 'output');
+            await engine.check(joinedText, 'output');
 
           if (guardResult.action === 'redact') {
+            const redactedSegments = restoreSegments(redactedText);
             return {
               ...result,
-              content: replaceTextContent(result.content, redactedText),
+              content: replaceTextContent(
+                result.content,
+                redactedSegments ?? [redactedText, ...textSegments.slice(1)],
+              ),
             };
           }
         }
@@ -256,31 +320,32 @@ function buildMiddleware(engine: GuardEngine): LanguageModelV3Middleware {
 
       // For streaming, we buffer all chunks until completion so output guards
       // can block or redact before any text is emitted to the caller.
-      let accumulatedText = '';
       const bufferedChunks: LanguageModelV3StreamPart[] = [];
 
       const guardedStream = stream.pipeThrough(
         new TransformStream({
           transform(chunk, controller) {
             bufferedChunks.push(chunk);
-            if (chunk.type === 'text-delta' && 'delta' in chunk) {
-              accumulatedText += chunk.delta;
-            }
           },
           async flush(controller) {
             let outputChunks = bufferedChunks;
+            const textBlocks = collectTextStreamBlocks(bufferedChunks);
+            const { joinedText, restoreSegments } = createTextPartition(
+              textBlocks.map((block) => block.text),
+            );
 
-            if (accumulatedText) {
+            if (joinedText) {
               // This throws GuardViolationError if onViolation='throw'
               const { result, content: redactedText } = await engine.check(
-                accumulatedText,
+                joinedText,
                 'output',
               );
 
               if (result.action === 'redact') {
+                const redactedSegments = restoreSegments(redactedText);
                 outputChunks = replaceTextStreamChunks(
                   bufferedChunks,
-                  redactedText,
+                  redactedSegments ?? [redactedText, ...textBlocks.slice(1).map((block) => block.text)],
                 );
               }
             }
