@@ -1,0 +1,114 @@
+# Mundabra AI Guardrails
+
+Lightweight TypeScript guardrails for the Vercel AI SDK and agentic applications.
+
+## Summary
+
+This package wraps AI SDK language models with input and output guards.
+
+It supports:
+
+- Prompt injection detection
+- Encoding and obfuscation detection
+- Input length limiting
+- Topic filtering
+- PII detection and redaction
+- Secret detection
+- Content safety heuristics
+- Exfiltration detection
+- Optional LLM classifier guards
+
+## Public API
+
+- `withGuardrails(model, config?)`
+- `createGuardEngine(config)`
+- `buildMiddleware(engine)`
+- `defineGuard(...)`
+
+## Defaults
+
+`withGuardrails(model)` enables:
+
+- Input: `injection`, `encoding`, `length`
+- Output: `pii`, `secrets`, `exfiltration`
+
+It does not enable:
+
+- `content`
+- `topic`
+- LLM classifier
+
+## Execution Model
+
+- Guards run by stage: `input` or `output`
+- Guards run by tier: `1`, `2`, `3`
+- Guards execute sequentially within each tier so redactions compose
+- Tier 2 and tier 3 default to `runOn: "flagged"`
+- Tier 2 and tier 3 can opt into `runOn: "always"`
+
+## Middleware Behavior
+
+`transformParams`:
+
+- extracts user text from AI SDK prompt messages
+- runs input guards before the model call
+
+`wrapGenerate`:
+
+- extracts generated text content
+- runs output guards
+- rewrites generated text parts when a guard returns `redact`
+
+`wrapStream`:
+
+- buffers the entire model stream
+- accumulates text deltas
+- runs output guards after completion
+- replays sanitized chunks to the caller
+
+Important consequence:
+
+- stream safety is prioritized over real-time token streaming
+
+## Important Invariants
+
+- ESM-only package
+- Node.js `>=20`
+- No extra runtime dependencies beyond peer deps
+- Redaction behavior must be covered in tests for both generate and stream paths
+- Stripe publishable keys such as `pk_live_...` and `pk_test_...` are public and must not be flagged as secrets
+- README and machine-readable docs must stay aligned with real defaults and limitations
+
+## Disclaimer
+
+- The package is provided as a practical local guardrails layer, not as a complete AI safety or security platform.
+- It must not be described as a guarantee of compliance, confidentiality, or safety.
+- It should not be used as the only control in high-risk or regulated deployments.
+
+## Repository Map
+
+- `src/index.ts`: public exports
+- `src/types.ts`: config and guard contracts
+- `src/engine.ts`: guard execution engine
+- `src/middleware.ts`: AI SDK middleware integration
+- `src/guards/input/*`: input guards
+- `src/guards/output/*`: output guards
+- `src/guards/classifiers/llm.ts`: optional LLM judge
+- `src/utils/*`: normalization and helpers
+- `tests/middleware.test.ts`: middleware regression coverage
+- `tests/engine.test.ts`: engine semantics
+- `tests/guards/*.test.ts`: per-guard tests
+
+## Commands
+
+- install: `pnpm install`
+- test: `pnpm test`
+- typecheck: `pnpm typecheck`
+- build: `pnpm build`
+
+## Recommended Reading
+
+- `README.md`
+- `docs/agent-guide.md`
+- `docs/guard-reference.md`
+- `AGENTS.md`

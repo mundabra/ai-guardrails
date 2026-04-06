@@ -1,0 +1,31 @@
+# Mundabra AI Guardrails
+
+> Lightweight TypeScript guardrails for the Vercel AI SDK and agentic applications. Focused on prompt injection, PII, secrets, output safety, and small middleware-friendly integration.
+
+## Start Here
+
+- [README](https://raw.githubusercontent.com/mundabra/ai-guardrails/master/README.md)
+- [Disclaimer](https://raw.githubusercontent.com/mundabra/ai-guardrails/master/DISCLAIMER.md)
+- [Agent Guide](https://raw.githubusercontent.com/mundabra/ai-guardrails/master/docs/agent-guide.md)
+- [Guard Reference](https://raw.githubusercontent.com/mundabra/ai-guardrails/master/docs/guard-reference.md)
+- [AGENTS.md](https://raw.githubusercontent.com/mundabra/ai-guardrails/master/AGENTS.md)
+- [package.json](https://raw.githubusercontent.com/mundabra/ai-guardrails/master/package.json)
+
+## Important Behavior
+
+- Streaming output is buffered until completion so output guards can block or redact before any text is released.
+- Tier 2 and tier 3 guards run only after earlier warnings unless `runOn: "always"` is set.
+- `failOpen` defaults to `true`.
+- `onViolation` defaults to `throw`.
+- Stripe publishable keys are not treated as secrets.
+- This package is not a complete security or compliance boundary.
+
+## Commands
+
+- `pnpm test`
+- `pnpm typecheck`
+- `pnpm build`
+
+## Scope
+
+Use this project when you need small local guardrails around AI SDK model calls. Do not treat it as a comprehensive policy engine, semantic moderation system, or hallucination detector.

@@ -1,0 +1,66 @@
+{
+  "name": "@mundabra/ai-guardrails",
+  "version": "0.1.0",
+  "description": "Lightweight TypeScript guardrails for Vercel AI SDK and agentic apps — prompt injection, PII, secrets, content safety",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "check": "pnpm test && pnpm typecheck && pnpm build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "peerDependencies": {
+    "ai": "^6.0.0",
+    "@ai-sdk/provider": "^3.0.0"
+  },
+  "devDependencies": {
+    "@ai-sdk/provider": "^3.0.8",
+    "@types/node": "^25.5.2",
+    "ai": "^6.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "author": "Munish Dabra",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mundabra/ai-guardrails.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mundabra/ai-guardrails/issues"
+  },
+  "homepage": "https://github.com/mundabra/ai-guardrails#readme",
+  "keywords": [
+    "guardrails",
+    "ai",
+    "llm",
+    "prompt-injection",
+    "pii",
+    "secrets",
+    "content-safety",
+    "ai-agents",
+    "agentic",
+    "agent-guardrails",
+    "vercel-ai-sdk",
+    "middleware",
+    "security",
+    "llms-txt"
+  ],
+  "license": "MIT",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  }
+}
