@@ -12,6 +12,27 @@ It is usable today for lightweight guardrails in AI SDK applications, but the pr
 - heuristic tuning and false-positive controls
 - middleware and provider edge-case coverage
 
+## Why Guardrails Matter
+
+Provider-side safety helps, but it does not know your internal policies, your retrieved documents, your tool contracts, or what should never appear in a customer-facing reply.
+
+That gap matters most in real applications:
+
+- a user can try to override instructions or extract hidden context
+- a RAG pipeline can retrieve sensitive or off-policy internal notes
+- a tool call can receive dangerous input or return data that should never be shown
+- a drafted response can leak PII, secrets, or hidden exfiltration links
+
+This package is meant to be the application-side layer between your product and the model:
+
+- enforce use-case-specific checks around input and output
+- validate retrieved chunks before they become model context
+- validate tool inputs and tool outputs in agent workflows
+- apply one consistent policy layer across models instead of depending only on provider defaults
+- emit structured reports for auditability, CI, and evaluation pipelines
+
+The goal is practical defense-in-depth for TypeScript apps, not a promise of complete safety.
+
 ## Features
 
 - **Prompt injection detection** — 50+ weighted patterns across 8 attack categories
