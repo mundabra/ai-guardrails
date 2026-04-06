@@ -8,9 +8,14 @@ export type {
   Guard,
   AnyGuard,
   GuardResult,
+  GuardStage,
   GuardContext,
   GuardRunOn,
   GuardEvent,
+  GuardReport,
+  GuardStepReport,
+  GuardCheckResult,
+  GuardRetrievalCheckResult,
   GuardrailsConfig,
   InjectionConfig,
   EncodingConfig,
@@ -20,6 +25,10 @@ export type {
   SecretsConfig,
   ContentConfig,
   ClassifierConfig,
+  RetrievalConfig,
+  ToolInputConfig,
+  ToolOutputConfig,
+  ToolsConfig,
 } from './types.js';
 
 // Middleware
@@ -48,7 +57,7 @@ export { luhnCheck } from './utils/luhn.js';
 export function defineGuard<TConfig = Record<string, never>>(
   guard: {
     name: string;
-    stage: 'input' | 'output';
+    stage: import('./types.js').GuardStage;
     tier?: 1 | 2 | 3;
     runOn?: import('./types.js').GuardRunOn;
     check: (

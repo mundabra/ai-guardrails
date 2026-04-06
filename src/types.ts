@@ -13,10 +13,20 @@ export type GuardResult =
   | { action: 'warn'; reason: string; code: string };
 
 /**
+ * All supported guard execution stages.
+ */
+export type GuardStage =
+  | 'input'
+  | 'output'
+  | 'retrieval'
+  | 'tool_input'
+  | 'tool_output';
+
+/**
  * Context available to every guard during execution.
  */
 export interface GuardContext {
-  stage: 'input' | 'output';
+  stage: GuardStage;
   metadata?: Record<string, unknown>;
 }
 
@@ -38,7 +48,7 @@ export type GuardRunOn = 'flagged' | 'always';
  */
 export interface Guard<TConfig = Record<string, never>> {
   name: string;
-  stage: 'input' | 'output';
+  stage: GuardStage;
   tier: 1 | 2 | 3;
   /**
    * For tier 2/3 guards, controls whether the guard runs only after an earlier
@@ -161,6 +171,79 @@ export interface ClassifierConfig {
   runOn?: GuardRunOn;
 }
 
+export interface RetrievalConfig {
+  pii?: boolean | PiiConfig;
+  secrets?: boolean | SecretsConfig;
+  content?: boolean | ContentConfig;
+}
+
+export interface ToolInputConfig {
+  injection?: boolean | InjectionConfig;
+  encoding?: boolean | EncodingConfig;
+  length?: boolean | LengthConfig;
+  pii?: boolean | PiiConfig;
+  secrets?: boolean | SecretsConfig;
+}
+
+export interface ToolOutputConfig {
+  pii?: boolean | PiiConfig;
+  secrets?: boolean | SecretsConfig;
+  content?: boolean | ContentConfig;
+  exfiltration?: boolean;
+}
+
+export interface ToolsConfig {
+  input?: ToolInputConfig;
+  output?: ToolOutputConfig;
+}
+
+export type GuardReportOutcome = 'allow' | 'redact' | 'block' | 'error';
+
+export type GuardStepStatus =
+  | 'passed'
+  | 'warned'
+  | 'redacted'
+  | 'blocked'
+  | 'skipped'
+  | 'error';
+
+export interface GuardStepReport {
+  guard: string;
+  stage: GuardStage;
+  tier: 1 | 2 | 3;
+  runOn?: GuardRunOn;
+  status: GuardStepStatus;
+  reason?: string;
+  code?: string;
+  durationMs: number;
+}
+
+export interface GuardReport {
+  schemaVersion: 1;
+  stage: GuardStage;
+  outcome: GuardReportOutcome;
+  hasWarnings: boolean;
+  warningsCount: number;
+  redactionsApplied: number;
+  inputLength: number;
+  outputLength: number;
+  durationMs: number;
+  failOpenTriggered: boolean;
+  metadata?: Record<string, unknown>;
+  finalReason?: string;
+  finalCode?: string;
+  steps: GuardStepReport[];
+}
+
+export interface GuardCheckResult {
+  result: GuardResult;
+  content: string;
+}
+
+export interface GuardRetrievalCheckResult extends GuardCheckResult {
+  chunks?: string[];
+}
+
 /**
  * Top-level guardrails configuration.
  */
@@ -177,6 +260,8 @@ export interface GuardrailsConfig {
     content?: boolean | ContentConfig;
     exfiltration?: boolean;
   };
+  retrieval?: RetrievalConfig;
+  tools?: ToolsConfig;
   classifier?: ClassifierConfig;
   /** Custom guards to add to the engine */
   customGuards?: Guard[];
@@ -186,6 +271,8 @@ export interface GuardrailsConfig {
   failOpen?: boolean;
   /** Optional logging callback for all guard events */
   logger?: (event: GuardEvent) => void;
+  /** Optional aggregated report callback for each guard engine check */
+  onReport?: (report: GuardReport) => void | Promise<void>;
 }
 
 /**
@@ -194,7 +281,7 @@ export interface GuardrailsConfig {
 export interface GuardEvent {
   type: 'violation' | 'warning' | 'error' | 'pass';
   guard: string;
-  stage: 'input' | 'output';
+  stage: GuardStage;
   code?: string;
   reason?: string;
   error?: unknown;

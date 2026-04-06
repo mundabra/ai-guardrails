@@ -2,6 +2,10 @@
 
 Quick reference for the built-in guards in `@mundabra/ai-guardrails`.
 
+The same built-in guards can also be reused on `retrieval`, `tool_input`, and
+`tool_output` stages through top-level config. The guard factories themselves
+still expose their original stage defaults.
+
 ## Input Guards
 
 ### injection
@@ -81,3 +85,14 @@ Quick reference for the built-in guards in `@mundabra/ai-guardrails`.
 - Output: `pii`, `secrets`, `exfiltration`
 
 It does not enable `content` or the LLM classifier by default.
+
+It also does not enable any retrieval or tool payload rails by default.
+
+## Reports
+
+Every engine check can emit a metadata-only `GuardReport` through `onReport`.
+
+- Reports contain stage, outcome, counts, timings, and per-guard step details
+- Outcome can be `allow`, `redact`, `block`, or `error`
+- Reports do not include raw input or output content by default
+- Reports are intended for logging, CI export, and downstream evaluation tools

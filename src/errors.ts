@@ -1,14 +1,16 @@
+import type { GuardStage } from './types.js';
+
 /**
  * Thrown when a guard detects a content violation and onViolation is 'throw'.
  */
 export class GuardViolationError extends Error {
   readonly code: string;
   readonly guard: string;
-  readonly stage: 'input' | 'output';
+  readonly stage: GuardStage;
 
   constructor(opts: {
     guard: string;
-    stage: 'input' | 'output';
+    stage: GuardStage;
     code: string;
     reason: string;
   }) {
