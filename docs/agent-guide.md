@@ -10,8 +10,10 @@ Primary use cases:
 
 - Block prompt injection before the model call.
 - Redact or block sensitive model output.
+- Validate retrieved context and tool payloads in agentic workflows.
 - Add a small policy layer around AI SDK `generate` and `stream` flows.
 - Reuse the same guards outside middleware through `GuardEngine`.
+- Export structured metadata-only guard reports for CI and evaluation pipelines.
 
 ## Public API
 
@@ -19,8 +21,12 @@ Primary use cases:
 - `createGuardEngine(config)`
 - `buildMiddleware(engine)`
 - `defineGuard(...)`
+- `GuardEngine.checkRetrieval(...)`
+- `GuardEngine.checkToolInput(...)`
+- `GuardEngine.checkToolOutput(...)`
 - Guard factories such as `injectionGuard()`, `piiGuard()`, `secretsGuard()`
 - Utility exports: `normalize()`, `luhnCheck()`
+- Report types such as `GuardReport` and `GuardStepReport`
 
 The entrypoint is `src/index.ts`.
 
@@ -32,11 +38,12 @@ The entrypoint is `src/index.ts`.
 
 Execution model:
 
-- Guards run by stage: `input` or `output`.
+- Guards run by stage: `input`, `output`, `retrieval`, `tool_input`, or `tool_output`.
 - Tiers run in order: `1`, `2`, `3`.
 - Guards run sequentially within a tier so redactions can compose.
 - Tier 2 and tier 3 default to `runOn: 'flagged'`.
 - Tier 2 and tier 3 can opt into `runOn: 'always'`.
+- Reports are emitted once per check through `onReport`, after completion or failure.
 
 ### Middleware
 
@@ -73,6 +80,12 @@ Optional LLM judge:
 
 - `src/guards/classifiers/llm.ts`
 
+Non-text stages reuse the same built-in guards by cloning them onto alternate stages during guard construction:
+
+- Retrieval: `pii`, `secrets`, `content`
+- Tool input: `injection`, `encoding`, `length`, `pii`, `secrets`
+- Tool output: `pii`, `secrets`, `content`, `exfiltration`
+
 ## Project Invariants
 
 - ESM-only output.
@@ -81,6 +94,8 @@ Optional LLM judge:
 - Docs should not claim behavior the code does not implement.
 - Publishable Stripe keys are public and must not be flagged as secrets.
 - Output redaction must be test-covered for both generate and stream paths.
+- Guard reports are metadata-only by default and must not capture raw content implicitly.
+- Retrieval/tool helpers validate serialized content; they do not reconstruct tool objects.
 
 ## Test Strategy
 
@@ -94,6 +109,7 @@ High-value tests:
 
 - `tests/middleware.test.ts`: model wrapping behavior
 - `tests/engine.test.ts`: tiering, fail-open/fail-closed, redaction composition
+- `tests/reporting.test.ts`: helper APIs and report contract
 - `tests/guards/*.test.ts`: individual guard heuristics
 
 If a change affects middleware behavior, add or update middleware tests first.

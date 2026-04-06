@@ -8,7 +8,7 @@ import type {
   LanguageModelV3Content,
   LanguageModelV3StreamPart,
 } from '@ai-sdk/provider';
-import type { GuardrailsConfig, AnyGuard } from './types.js';
+import type { GuardrailsConfig, AnyGuard, GuardStage } from './types.js';
 import { GuardEngine } from './engine.js';
 import { injectionGuard } from './guards/input/injection.js';
 import { encodingGuard } from './guards/input/encoding.js';
@@ -19,6 +19,14 @@ import { secretsGuard } from './guards/output/secrets.js';
 import { contentGuard } from './guards/output/content.js';
 import { exfiltrationGuard } from './guards/output/exfiltration.js';
 import { llmClassifierGuard } from './guards/classifiers/llm.js';
+import { createTextPartition } from './utils/text-partition.js';
+
+function cloneGuardToStage(guard: AnyGuard, stage: GuardStage): AnyGuard {
+  return {
+    ...guard,
+    stage,
+  };
+}
 
 /**
  * Build the list of guards from user configuration.
@@ -73,6 +81,123 @@ function buildGuards(config: GuardrailsConfig): AnyGuard[] {
     }
   }
 
+  if (config.retrieval) {
+    const { pii, secrets, content } = config.retrieval;
+
+    if (pii !== false && pii !== undefined) {
+      guards.push(
+        cloneGuardToStage(
+          piiGuard(pii === true ? undefined : pii),
+          'retrieval',
+        ),
+      );
+    }
+
+    if (secrets !== false && secrets !== undefined) {
+      guards.push(
+        cloneGuardToStage(
+          secretsGuard(secrets === true ? undefined : secrets),
+          'retrieval',
+        ),
+      );
+    }
+
+    if (content !== false && content !== undefined) {
+      guards.push(
+        cloneGuardToStage(
+          contentGuard(content === true ? undefined : content),
+          'retrieval',
+        ),
+      );
+    }
+  }
+
+  if (config.tools?.input) {
+    const { injection, encoding, length, pii, secrets } = config.tools.input;
+
+    if (injection !== false && injection !== undefined) {
+      guards.push(
+        cloneGuardToStage(
+          injectionGuard(injection === true ? undefined : injection),
+          'tool_input',
+        ),
+      );
+    }
+
+    if (encoding !== false && encoding !== undefined) {
+      guards.push(
+        cloneGuardToStage(
+          encodingGuard(encoding === true ? undefined : encoding),
+          'tool_input',
+        ),
+      );
+    }
+
+    if (length !== false && length !== undefined) {
+      guards.push(
+        cloneGuardToStage(
+          lengthGuard(length === true ? undefined : length),
+          'tool_input',
+        ),
+      );
+    }
+
+    if (pii !== false && pii !== undefined) {
+      guards.push(
+        cloneGuardToStage(
+          piiGuard(pii === true ? undefined : pii),
+          'tool_input',
+        ),
+      );
+    }
+
+    if (secrets !== false && secrets !== undefined) {
+      guards.push(
+        cloneGuardToStage(
+          secretsGuard(secrets === true ? undefined : secrets),
+          'tool_input',
+        ),
+      );
+    }
+  }
+
+  if (config.tools?.output) {
+    const { pii, secrets, content, exfiltration } = config.tools.output;
+
+    if (pii !== false && pii !== undefined) {
+      guards.push(
+        cloneGuardToStage(
+          piiGuard(pii === true ? undefined : pii),
+          'tool_output',
+        ),
+      );
+    }
+
+    if (secrets !== false && secrets !== undefined) {
+      guards.push(
+        cloneGuardToStage(
+          secretsGuard(secrets === true ? undefined : secrets),
+          'tool_output',
+        ),
+      );
+    }
+
+    if (content !== false && content !== undefined) {
+      guards.push(
+        cloneGuardToStage(
+          contentGuard(content === true ? undefined : content),
+          'tool_output',
+        ),
+      );
+    }
+
+    if (exfiltration) {
+      guards.push(
+        cloneGuardToStage(exfiltrationGuard(), 'tool_output'),
+      );
+    }
+  }
+
   // LLM classifier (opt-in tier 3)
   if (config.classifier) {
     guards.push(llmClassifierGuard(config.classifier, 'input'));
@@ -118,38 +243,6 @@ function extractOutputText(content: LanguageModelV3Content[]): string {
     )
     .map((c) => c.text)
     .join('\n');
-}
-
-/**
- * Build a reversible joined representation of text segments so redacted text
- * can be mapped back to the original text-part structure.
- */
-function createTextPartition(segments: string[]): {
-  joinedText: string;
-  restoreSegments: (redactedText: string) => string[] | null;
-} {
-  if (segments.length <= 1) {
-    return {
-      joinedText: segments[0] ?? '',
-      restoreSegments: (redactedText) => [redactedText],
-    };
-  }
-
-  let counter = 0;
-  let separator = '';
-  do {
-    separator =
-      `\u0000__MUNDABRA_AI_GUARDRAILS_BOUNDARY_${counter}__\u0000`;
-    counter += 1;
-  } while (segments.some((segment) => segment.includes(separator)));
-
-  return {
-    joinedText: segments.join(separator),
-    restoreSegments: (redactedText) => {
-      const restored = redactedText.split(separator);
-      return restored.length === segments.length ? restored : null;
-    },
-  };
 }
 
 /**
@@ -380,6 +473,7 @@ export function createGuardEngine(config: GuardrailsConfig): GuardEngine {
     onViolation: config.onViolation ?? 'throw',
     failOpen: config.failOpen ?? true,
     logger: config.logger,
+    onReport: config.onReport,
   });
 }
 
@@ -420,6 +514,7 @@ export function withGuardrails(
     onViolation: cfg.onViolation ?? 'throw',
     failOpen: cfg.failOpen ?? true,
     logger: cfg.logger,
+    onReport: cfg.onReport,
   });
 
   return wrapLanguageModel({

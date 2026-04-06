@@ -103,8 +103,8 @@ export function llmClassifierGuard(
     stage,
     tier: 3,
     runOn: config.runOn ?? DEFAULT_CONFIG.runOn,
-    check: async (content, context, cfg) =>
-      checkWithLlm(content, context.stage, cfg),
+    check: async (content, _context, cfg) =>
+      checkWithLlm(content, stage, cfg),
     defaultConfig: { ...DEFAULT_CONFIG, ...config } as ClassifierConfig,
   };
 }
